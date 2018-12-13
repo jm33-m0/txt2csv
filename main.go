@@ -9,12 +9,6 @@ import (
 	"sync"
 )
 
-type item struct {
-	username string `csv:"username"`
-	password string `csv:"password"`
-	email    string `csv:"email"`
-}
-
 func main() {
 	// cmdline args
 	var (
