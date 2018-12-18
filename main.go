@@ -12,16 +12,23 @@ import (
 func main() {
 	// cmdline args
 	var (
-		sep    = flag.String("sep", "whitespace", "Separator")
+		head   = flag.String("head", "1,2,3", "Name for each column")
+		sep    = flag.String("seps", "'SPC , . | /'", "Separators, used to recognize each line")
 		inTXT  = flag.String("in", "", "Input TXT file")
 		outCSV = flag.String("out", "", "Resulting csv file name")
 	)
 	flag.Parse()
 
-	if *sep == "" || *inTXT == "" || *outCSV == "" {
+	if *head == "" || *sep == "" || *inTXT == "" || *outCSV == "" {
 		flag.Usage()
 		os.Exit(1)
 	}
+
+	// how many columns to scan for
+	columnCnt := len(strings.Split(*head, ","))
+
+	// separators
+	seps := strings.Split(*sep, " ")
 
 	// read input txt, convert each line and write to csv
 	txtFile, err := os.Open(*inTXT)
@@ -45,6 +52,10 @@ func main() {
 			log.Fatal(err)
 		}
 	}()
+	err = AppendToFile(csvFile, *head)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	var wg sync.WaitGroup // batch jobs
 	txtScanner := bufio.NewScanner(txtFile)
@@ -54,7 +65,7 @@ func main() {
 		go func() {
 			wg.Add(1)
 			defer wg.Done()
-			csvStr := convert(*sep, rawStr)
+			csvStr := convert(*head, seps, rawStr, columnCnt)
 			if csvStr == "" {
 				return
 			}
@@ -71,29 +82,32 @@ func main() {
 	}
 }
 
-func convert(sep string, rawStr string) string {
+func convert(head string, seps []string, rawStr string, columnCnt int) string {
 	var result string
+	var words []string
 
 	rawStr = strings.Trim(rawStr, "\n")
 
-	if sep == "whitespace" {
-		// convert to comma sep
-		words := strings.Fields(rawStr)
-		if len(words) <= 1 {
+	// test if SPC works
+	words = strings.Fields(rawStr)
+	if len(words) == columnCnt {
+		result = strings.Join(words, ",")
+		log.Println("SPC works")
+		return result
+	}
+
+	// split by other seps
+	for _, sep := range seps {
+		if sep == "SPC" {
+			continue
+		}
+		words = strings.Split(rawStr, sep)
+		if len(words) != columnCnt {
 			return ""
 		}
 
 		result = strings.Join(words, ",")
-
-		return result
+		log.Printf("%s works", sep)
 	}
-
-	// split by sep and convert
-	words := strings.Split(rawStr, sep)
-	if len(words) <= 1 {
-		return ""
-	}
-
-	result = strings.Join(words, ",")
 	return result
 }
